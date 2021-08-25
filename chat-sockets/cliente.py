@@ -6,6 +6,7 @@ PORT = 5000            # Porta que o Servidor esta
 dest = (HOST, PORT)
 ORIGEM = 3000
 HEADER_SIZE = 65
+BUFFER_SIZE = 102400
 
 def checksum(byte_msg):
     total = 0
@@ -31,54 +32,65 @@ def addHeader(porta_origem, porta_destino, size, checksum, seq, data):
     return final_msg 
 
 
+
 udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 udp.bind(('localhost', ORIGEM))
 
 print('Para sair use CTRL+X\n')
 
+def ack_rcvr():
+    udp.settimeout(5)
+    while True:
+        try: 
+            data = udp.recv(BUFFER_SIZE)
+            return data
+        except socket.timeout:
+            return False
 
 while True:
+
+        
     file_name = input('Enter file name: ')
     f = open(file_name, 'rb')
-    data = f.read(1024)
-    seq = 0
+    data = f.read(256) #1024
+    seq = 0 #'0'
 
-    checksum_file_name = checksum(str.encode(file_name))
+    checksum_file_name = checksum(file_name) #checksum(str.encode(file_name))
     print('checksum do file name: ', checksum_file_name)
     final_file_name = addHeader(ORIGEM, PORT, HEADER_SIZE +  len(file_name), checksum_file_name, seq, file_name)
     print('final file name: ', final_file_name)
 
     try:
-        udp.sendto(final_file_name.encode(), dest)
+        udp.sendto(final_file_name, dest) #(final_file_name.encode(), dest)
     except socket.error:
         print('ERROR IN SENDING FILE NAME: ')
         sys.exit()
 
     checksum_data = checksum(data)
-    final_data = addHeader(ORIGEM, PORT, HEADER_SIZE +  len(data), checksum_data, seq, data.decode())
-    printAux = udp.sendto(final_data.encode(), dest)
+    final_data = addHeader(ORIGEM, PORT, HEADER_SIZE +  len(data), checksum_data, seq, data) #data.decode())
+    printAux = udp.sendto(final_data, dest) #(final_data.encode(), dest)
 
     while(data):
         if (printAux):
             print('sending...')
-            data = f.read(1024)
-            seq = seq + 1
-            final_data = addHeader(ORIGEM, PORT, HEADER_SIZE +  len(data), checksum_data, seq, data.decode())
-            printAux = udp.sendto(final_data.encode(), dest)
+            data = f.read(256) #data = f.read(1024)
+           # seq = seq + 1
+            final_data = addHeader(ORIGEM, PORT, HEADER_SIZE +  len(data), checksum_data, seq, data) #data.decode())
+            printAux = udp.sendto(final_data, dest) #printAux = udp.sendto(final_data.encode(), dest)
     
     f.close()
 
-    msg, clientAddr = udp.recvfrom(1024)
+    msg, clientAddr = udp.recvfrom(BUFFER_SIZE)
     file_name = msg.strip()
     print("Received File:", file_name)
 
     f2 = open('[CLIENTE] '.encode() + file_name,'wb')
-    msg,clientAddr = udp.recvfrom(1024)
+    msg,clientAddr = udp.recvfrom(BUFFER_SIZE)
     while(msg):
         print(msg)
         f2.write(msg)
         print('msg1')
-        msg, clientAddr = udp.recvfrom(1024)
+        msg, clientAddr = udp.recvfrom(BUFFER_SIZE)
         print('msg2')
     print(msg)
     f2.close()
